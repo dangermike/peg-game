@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/bits"
 	"runtime"
 	"sync"
 )
@@ -12,13 +11,6 @@ import (
 //      3   4   5
 //    6   7   8   9
 // 10  11  12  13  14
-
-// Move is something that might happen
-type Move struct {
-	from byte
-	over byte
-	to   byte
-}
 
 var moves = []Move{
 	Move{0, 1, 3},
@@ -64,111 +56,12 @@ var moves = []Move{
 	Move{3, 4, 5},
 }
 
-type BitMove struct {
-	from uint16
-	to   uint16
-}
-
-func BitMoveFromMove(move Move) BitMove {
-	return BitMove{
-		uint16(1<<move.from) | uint16(1<<move.over),
-		1 << move.to,
-	}
-}
-
-func BitMoves(moves []Move) []BitMove {
-	ret := make([]BitMove, len(moves), len(moves))
-	for i := 0; i < len(moves); i++ {
-		ret[i] = BitMoveFromMove(moves[i])
-	}
-	return ret
-}
-
-var bitMoves = BitMoves(moves)
-
-// Board holds pegs, indicated by their bool value
-type Board uint16
-
-// NewBoard makes a board with one peg open
-func NewBoard() *Board {
-	var b Board
-	b = ((1 << 15) - 1) ^ (1 << 4)
-	return &b
-}
-
-// PegCount counts pegs
-func (b *Board) PegCount() int {
-	return bits.OnesCount16(uint16(*b))
-}
-
-// IsComplete means the board only has one peg
-func (b *Board) IsComplete() bool {
-	return 1 >= b.PegCount()
-}
-
-func (b *Board) peg(ix uint) string {
-	if (uint16(*b) & (uint16(1) << ix)) > 0 {
-		return "*"
-	}
-	return "O"
-}
-
-// Print dumps the board to the console
-func (b *Board) Print() {
-	fmt.Printf("    %s\n", b.peg(0))
-	fmt.Printf("   %s %s\n", b.peg(1), b.peg(2))
-	fmt.Printf("  %s %s %s\n", b.peg(3), b.peg(4), b.peg(5))
-	fmt.Printf(" %s %s %s %s\n", b.peg(6), b.peg(7), b.peg(8), b.peg(9))
-	fmt.Printf("%s %s %s %s %s\n", b.peg(10), b.peg(11), b.peg(12), b.peg(13), b.peg(14))
-}
-
-// ToNumber Generates a unique number for each board
-func (b *Board) ToNumber() int {
-	return int(*b)
-}
-
-// BoardMove is a tuple of a board and a move
-type BoardMove struct {
-	board *Board
-	move  Move
-	prev  *BoardMove
-}
-
-func (bm *BoardMove) printMovesInner() {
-	if bm.prev != nil {
-		bm.prev.printMovesInner()
-	}
-	if bm.move.from < 255 {
-		fmt.Print(bm.move)
-	}
-}
-
-// PrintMoves prints the moves in the order they occurred. Not thread safe
-func (bm *BoardMove) PrintMoves() {
-	bm.printMovesInner()
-	fmt.Println()
-}
+var bitMoves = BitMovesFromMoves(moves)
 
 // Empty holds nothing. This is because Golang doesn't have native sets
 type Empty struct{}
 
 var empty = Empty{}
-
-// NextStates enumerates only the valid states that can come from the given state
-func NextStates(baseMove *BoardMove, toCheck chan<- *BoardMove) int {
-	b := baseMove.board
-	c := 0
-	bval := uint16(*b)
-	for i := 0; i < len(moves); i++ {
-		move := bitMoves[i]
-		if (bval&move.from == move.from) && (bval&move.to == 0) {
-			nb := Board((bval ^ move.from) | move.to)
-			toCheck <- &BoardMove{&nb, moves[i], baseMove}
-			c++
-		}
-	}
-	return c
-}
 
 func main() {
 	workerCnt := runtime.NumCPU() - 1
@@ -184,20 +77,19 @@ func main() {
 		go func() {
 			defer wg.Done()
 			for ps := range toExpand {
-				NextStates(ps, toCheck)
+				ps.NextStates(toCheck)
 			}
 		}()
 	}
 
 	toCheck <- &BoardMove{NewBoard(), Move{255, 255, 255}, nil}
-	seenBoards := make(map[int]struct{})
+	seenBoards := make(map[uint64]struct{})
 	for bs := range toCheck {
-		pc := bs.board.PegCount()
-		boardNum := bs.board.ToNumber()
+		boardNum := uint64(bs.board)
 
 		_, seen := seenBoards[boardNum]
-		// seen := false
 		if !seen {
+			pc := bs.board.PegCount()
 			seenBoards[boardNum] = empty
 			// fmt.Printf("%d - %d: %d pegs\n", c, boardNum, pc)
 			c++
