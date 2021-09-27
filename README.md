@@ -1,9 +1,11 @@
 # Peg Game
+
 ![peg game](https://images-na.ssl-images-amazon.com/images/I/418L40lLY0L.jpg)
 
 Ever been to a Cracker Barrel? Even if you haven't you've probably seen the [peg game](https://shop.crackerbarrel.com/toys-games/games/travel-games/peg-game/606154). While I'm certain that I've beaten it, I don't remember how. Also, it was probably by accident. There are lots of [instructions](https://www.google.com/search?q=solve+triangle+peg+game) on how to solve it, none will be as fast nor as overbuild as the version here. This code will solve the puzzle in <3ms on my laptop.
 
 ## Implementation
+
 Consider the board as a series of numbered holes that either do or do not contain a peg. This can be represented as an integer, with each bit representing a hole, 1 is full, 0 is empty. You know you are done when there is only one `1` in the number, which can be [counted efficiently](http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan). This representation does not imply any sort of spatial relationship nor jumping rules.
 
 Valid moves are defined as a triplet of where you are jumping `from`, what you are jumping `over`, and where you are jumping `to`. For a move to be available on a given board layout, `from` and `over` must be full and `to` must be empty. While it is convenient to take these as tuples of 3 bytes, we can consider them as 2 "board" integers instead. This allows checking for validity in 2 bitwise operations, then another two to transform one board state into another.
@@ -17,15 +19,17 @@ There are many ways to get to the same board position, no reason to check again.
 The thread/channel controls are a bit unorthodox. As this is a command-line tool we could easily just abandon the permutation threads and let them die with the parent process. The last lines of `main` are completely unnecessary cooperative shutdown. That way this code could be converted to a library for... reasons. No leaks.
 
 ## Can we go crazier?
+
 Oh yeah.
 
 * Because the spatial relationships are defined in code, we can do more than the triangle shape with minimal modifications
-   * All of the popular peg games I found had fewer than 64 holes, so any could be modeled without changing the implementation.
-   * We are not limited to real-world concepts of adjacency, nor even by only 2 dimensions. Modeling a cube would be trivial.
+  * All of the popular peg games I found had fewer than 64 holes, so any could be modeled without changing the implementation.
+  * We are not limited to real-world concepts of adjacency, nor even by only 2 dimensions. Modeling a cube would be trivial.
 * 3-peg moves are a limitation of the current implementation. This need not be true.
 * We are not discovering possible moves, but rather hard-coding them. This allowed me to duck spatially modeling the game board, but that's lame.
 * We are doing our checks in the integer unit, which is fast. Know what would be even faster? Getting some SIMD/vector instructions going here.
 * The maximum branching is the limiting factor on the channel size -- too small and we deadlock. The current value is magical. In a bad way.
 
 ## Why did you write this, weirdo?
+
 I hadn't written any Golang in a while. Besides, I like to party. And by party I mean massively overbuild stuff in my free time. If you're nice to me maybe I'll publish the Golang version of the Chutes 'n' Ladders simulator.
